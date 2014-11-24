@@ -1,0 +1,120 @@
+---
+title: "Practical Machine Learning Course Project"
+output: html_document
+---
+
+The goal of the project is to predict the manner in which people did the exercise. This is the "classe" variable in the training set. Any of the other variables may be used to predict with. Describe how the model was built, and cross validation used. Calculate the expected out of sample error is. Use the prediction model to predict 20 different test cases. 
+
+####Loading data
+
+```{r loadData, echo=TRUE, cache=TRUE}
+trainUrl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testUrl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+download.file(trainUrl, destfile="./training.csv", method="curl")
+download.file(testUrl, destfile="./testing.csv", method="curl")
+training<-read.csv("training.csv")
+testing<-read.csv("testing.csv")
+```
+
+####Partitioning the training set into 2 data sets
+
+The below code loads the required packagesand partitions the training data set into 2 parts, test and train such that 75% of the data set is in train and 25% in test.
+
+```{r partition, echo=TRUE, cache=TRUE}
+library(caret)
+library(kernlab)
+library(e1071)
+inTrain<-createDataPartition(y=training$classe,p=0.75,list=FALSE)
+train<-training[inTrain,]
+test<-training[-inTrain,]
+dim(train)
+dim(test)
+```
+
+####Preprocessing Data
+
+
+Removing additional variables like username, timestamp and the outcome variable classe:
+```{r transformation1, echo=TRUE, cache=TRUE}
+remove<-c(1:7)
+train<-train[,-remove]
+```
+
+Removing near zero variance variables to reduce the number of predictors:
+```{r transformation2, echo=TRUE, cache=TRUE}
+dataNZV<-nearZeroVar(train, saveMetrics=TRUE)
+train<-train[,!dataNZV$nzv]
+```
+
+Removing variables with NA values:
+```{r transformation3, echo=TRUE, cache=TRUE}
+cols<-vector()
+index<-0
+for (i in 1:ncol(train))
+{
+  if (sum(is.na(train[,i]))/nrow(train) >=0.6)
+  {
+    index<-index+1
+    cols[index]<-i
+  }
+}
+train<-train[,-cols]
+dim(train)
+```
+
+Performing the same on the test and testing data sets:
+```{r testCheck, echo=TRUE, cache=TRUE}
+col1<-colnames(train)
+col2<-colnames(train[,-53])
+test<-test[col1]
+testing<-testing[col2]
+dim(test)
+dim(testing)
+```
+
+####Building Prediction Model
+
+######Decision Tree
+
+```{r model, echo=TRUE}
+library(rpart)
+library(rpart.plot)
+library(RColorBrewer)
+library(rattle)
+library(randomForest)
+modelFit <- rpart(classe ~ ., data=train, method="class")
+fancyRpartPlot(modelFit)
+prediction1 <- predict(modelFit, test, type="class")
+```
+
+Result:
+```{r result, echo=TRUE, cache=TRUE}
+confusionMatrix(prediction1, test$classe)
+``` 
+
+This model is 74.9% accurate. Using random forests as the prediction model:
+
+######Random Forests
+
+Building the model:
+```{r model2, echo=TRUE, cache=TRUE}
+modelFit2 <- randomForest(classe ~. , data=train)
+prediction2 <- predict(modelFit2, test, type = "class")
+```
+
+Result:
+```{r result2, echo=TRUE, cache=TRUE}
+confusionMatrix(prediction2, test$classe)
+``` 
+
+We now get an accuracy of 99.3%.
+
+######Final Result:
+Using random forests gave an accuracy of 99.3%, hence this model is more effective than decision trees. 
+The expected out-of-sample error is 0.7% (100-99.3).
+
+####Prediction on the test sample
+```{r}
+finalPrediction<-predict(modelFit2,test, type= "class")
+finalPrediction
+``` 
